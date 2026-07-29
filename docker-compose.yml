@@ -1,0 +1,34 @@
+# Local Postgres for the YU Peer Tuition Dashboard.
+#
+# These credentials are deliberately non-secret: this database is local-only,
+# disposable, and holds nothing but public IPEDS data. Do not put anything
+# sensitive here. The scripts connect via DATABASE_URL, defaulting to this same
+# connection string when the env var is unset.
+#
+#   docker compose up -d      # start Postgres (schema auto-applied on first run)
+#   docker compose down       # stop; add -v to also wipe the data volume
+
+services:
+  db:
+    image: postgres:16
+    container_name: yu_tuition_db
+    environment:
+      POSTGRES_USER: yu
+      POSTGRES_PASSWORD: yu_local_dev
+      POSTGRES_DB: yu_tuition
+    ports:
+      # Host 55433 -> container 5432: the Finance dashboard's local Postgres
+      # already claims 55432, so this sits one clear of it.
+      - "55433:5432"
+    volumes:
+      # Auto-applied once, on first container init (empty data dir only).
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - yu_tuition_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yu -d yu_tuition"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  yu_tuition_pgdata:
