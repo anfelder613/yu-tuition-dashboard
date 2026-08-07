@@ -141,3 +141,5 @@ different IPEDS survey component:
 
 These are siblings, not continuations. Figures are never reconciled or cross-referenced
 between dashboards.
+
+Part of the [capstone portfolio](https://anfelder613.github.io/) — an index of all four dashboards.
