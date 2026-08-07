@@ -43,9 +43,14 @@ of them. Use only the out-of-state / private-rate fields. Do not include any in-
 in-district variable in the pipeline — they will be blank or not meaningfully comparable for
 this peer set.
 
-Required fees are reported separately from tuition in the source data. Whether they are
-summed with tuition for display or shown as their own line is an **open decision** — resolve
-it in the Slice 1 grill session, not by default.
+Required fees are reported separately from tuition in the source data. **Resolved in the
+Slice 1 grill session: fees are an opt-in toggle, off by default.** When enabled, the chart
+adds a **dotted** "total incl. fees" line alongside the tuition line and reports both in the
+hover template. Tuition and required fees stay separate columns in the database regardless
+of display.
+
+Never sum fees into tuition by default — that would silently inflate the headline number
+into something no institution publishes as its tuition. See PRD §11.
 
 ---
 
@@ -53,10 +58,12 @@ it in the Slice 1 grill session, not by default.
 
 - **App framework:** Streamlit
 - **Language:** Python
-- **Database:** PostgreSQL (same pattern as the Finance dashboard's Slice 2 — CSV → Postgres
-  as the authoritative store → queried from the app, not flat-file reads baked into the app)
-- **Charting:** to be decided in Slice 1 grill session (e.g. Plotly, Altair, or Streamlit's
-  native chart elements) — do not assume before that conversation
+- **Database:** PostgreSQL (same pattern as the Finance dashboard — CSV → Postgres
+  as the authoritative store → queried from the app, not flat-file reads baked into the app).
+  Runs in Docker on **host port 55433**.
+- **Charting:** **Plotly** (`plotly.graph_objects`) — resolved in the Slice 1 grill session.
+  Chosen over Altair and Streamlit's native charts for per-trace control over dash patterns
+  and hover templates, which the undergrad/grad distinction and the fees toggle depend on.
 
 Do not introduce new libraries without asking first.
 
@@ -65,14 +72,15 @@ Do not introduce new libraries without asking first.
 ## Project Structure
 
 ```
-/app             # Streamlit app entry point and pages
-/db              # Postgres schema + migrations
-/scripts         # Python extraction / load scripts
-/data            # raw downloaded CSVs (not committed if large — confirm .gitignore)
+/app             # Streamlit app (app.py) + requirements.txt
+/db              # Postgres schema (schema.sql)
+/scripts         # load_ipeds_tuition.py, requirements.txt, and ipeds_source_csv/
 CLAUDE.md
 PRD.md
 README.md
 ```
+
+Note: the source CSVs live in `scripts/ipeds_source_csv/`, not a top-level `/data` folder.
 
 Keep it flat and simple. No over-engineering. This is a prototype, not a production system.
 
@@ -113,9 +121,10 @@ re-pulling or re-verifying — browse each year's tree fresh.
 
 Imputation variables were **not** included (selected "No").
 
-The actual CSV column headers, table numbers, and any year-to-year naming changes still
-need to be confirmed against the downloaded data dictionaries before writing pipeline code —
-do not skip this step even though the variable selection itself is now locked in.
+**Column headers are now confirmed** — see "Resolved Data Findings" below. The prefix before
+the first `.` changes across years (`IC{year}_AY.` for 2015–2023, `COST1_2024.` for 2024),
+so the loader matches on header **suffix** and hard-fails if a suffix isn't found. Do not
+switch it to prefix matching.
 
 ### Institutions (hardcoded)
 
@@ -163,10 +172,10 @@ regardless of how they're eventually displayed.
 Work one slice at a time. Do not start the next slice until the current one is fully working
 with real data. Do not build ahead speculatively.
 
-### Slice 1 — Data Pipeline + Undergraduate/Graduate Tuition, All Institutions
+### Slice 1 — Data Pipeline + Undergraduate/Graduate Tuition, All Institutions  ✅
 
-Grill session first: confirm variable names, confirm fee-handling decision, confirm
-Postgres schema, confirm charting library.
+Grill session complete (2026-07-28): variable names, fee handling, Postgres schema, and
+charting library are all resolved — see "Resolved Data Findings" and PRD §12.
 
 - Data pipeline (CSV → PostgreSQL → app query): load script reads the downloaded CSV(s),
   maps to institution/year/level, filters to the 6 UNITIDs, loads into Postgres.
@@ -274,6 +283,30 @@ Fully confirmed in the Slice 1 grill session (2026-07-28):
 | `CSV_7232026-383.zip` | 2015 | 2015-16 |
 
 Filenames are opaque and do not contain the year — same pattern as the Finance project.
+
+---
+
+## Deployment & Hosting
+
+**Status: not publicly hosted. Runs locally.**
+
+- **Repo:** https://github.com/anfelder613/yu-tuition-dashboard — public.
+
+This dashboard **cannot be hosted on GitHub Pages.** Pages serves static files only; this is
+a Streamlit app backed by a live PostgreSQL database, so it needs a running Python process
+*and* a running database. Do not add a Pages workflow or a `base` path here — neither
+applies.
+
+Publishing it would require a Python host (Streamlit Community Cloud is the natural fit,
+and free) plus a managed Postgres reachable from it (Supabase / Neon / Railway) with
+`DATABASE_URL` set as a secret. Neither is set up. The local Docker Postgres is bound to
+`localhost:55433` and is not reachable externally; its credentials are local-only,
+non-secret, and public-data-only.
+
+**Alternative if hosting becomes a requirement:** export the loaded table to a static file
+and read from that instead of Postgres — deployable to Streamlit Cloud with no database.
+That trades away the "queries a real database" property, so treat it as a deliberate
+decision requiring a PRD update, not a quick fix. See PRD §13.
 
 ---
 
